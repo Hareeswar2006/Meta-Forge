@@ -290,12 +290,14 @@ def X_analysis(X):
     #----------------------------------
     input_display(nnumerical,numerical_df,numerical_null,total_values,total_null_values,pct_total,numerical_stats,numerical_col_analysis,meta_structure)
 
+
 def Y_analysis(Y,column_name):
     n_rows,n_total,n_null,pct_missing = stats_analyzer(Y)
     target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio = distribution_stats(Y,column_name)
     output_skew_kur_stats = numerical_skew_kurtosis(Y)
     target_outlier_count, target_outlier_pct = outliers(Y,column_name)
     output_display(n_rows,n_total,n_null,pct_missing,target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio,output_skew_kur_stats,target_outlier_count,target_outlier_pct)
+
 
 if __name__ == "__main__":
     file_path="../../data/Travel.csv"
