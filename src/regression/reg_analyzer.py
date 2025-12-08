@@ -91,13 +91,7 @@ def pca_analysis(df):
     while len(explained) < 3:
         explained.append(0.0)
 
-    pca_meta = {
-        "pca_component_1" : explained[0],
-        "pca_component_2" : explained[1],
-        "pca_component_3" : explained[2]
-    }
-
-    return pca_meta
+    return explained[0], explained[1], explained[2]
 
 
 def distribution_stats(df,column_name):
@@ -269,7 +263,7 @@ def X_analysis(X):
     #---------------------------------
     nrows,ncols,nnumerical,ncategorical,numerical_df,numerical_null,categorical_df,categorical_null,total_values,total_null_values,pct_total = stats_analyzer(X)
     numerical_stats = numerical_skew_kurtosis(numerical_df)
-    # pca_meta = pca_analysis(numerical_df)
+    pca_com1, pca_com2, pca_com3 = pca_analysis(numerical_df)
 
     numerical_col_analysis={}
     for col in numerical_df.columns:
@@ -284,11 +278,20 @@ def X_analysis(X):
                                      }
     #----------------------------------
     meta_structure = aggregate_numeric_stats(numerical_col_analysis, numerical_stats,numerical_df)
-    meta_structure["n_numeric_rows"] = nnumerical
-    meta_structure["n_categorical_rows"] = ncategorical
+    meta_structure["pca_component_1"] = pca_com1
+    meta_structure["pca_component_2"] = pca_com2
+    meta_structure["pca_component_3"] = pca_com3
+    meta_structure["n_numeric_cols"] = nnumerical
+    meta_structure["n_categorical_cols"] = ncategorical
     meta_structure["numerical_ratio"] = float(nnumerical/(nnumerical+ncategorical))
+    meta_structure["n_rows"] = nrows
+    meta_structure["n_cols"] = ncols
+
     #----------------------------------
-    input_display(nnumerical,numerical_df,numerical_null,total_values,total_null_values,pct_total,numerical_stats,numerical_col_analysis,meta_structure)
+    # input_display(nnumerical,numerical_df,numerical_null,total_values,total_null_values,pct_total,numerical_stats,numerical_col_analysis,meta_structure)
+    #----------------------------------
+
+    return meta_structure
 
 
 def Y_analysis(Y,column_name):
@@ -296,17 +299,43 @@ def Y_analysis(Y,column_name):
     target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio = distribution_stats(Y,column_name)
     output_skew_kur_stats = numerical_skew_kurtosis(Y)
     target_outlier_count, target_outlier_pct = outliers(Y,column_name)
-    output_display(n_rows,n_total,n_null,pct_missing,target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio,output_skew_kur_stats,target_outlier_count,target_outlier_pct)
+    #-----------------------------
+    target_meta = {}
+    target_meta["target_mean"] = target_mean
+    target_meta['target_std']=target_std
+    target_meta["target_min"] = target_min
+    target_meta["target_max"] = target_max
+    target_meta["target_range"] = target_range
+    target_meta["target_skewness_val"] = output_skew_kur_stats[column_name]["skewness_val"]
+    target_meta["target_skewness_direction"] = output_skew_kur_stats[column_name]["skewness_direction"]
+    target_meta["target_kurtosis_val"] = output_skew_kur_stats[column_name]["kurtosis_val"]
+    target_meta["target_kurtosis_direction"] = output_skew_kur_stats[column_name]["kurtosis_direction"]
+    target_meta["target_outlier_count"] = target_outlier_count
+    target_meta["target_outlier_pct"] = target_outlier_pct
+    target_meta["target_missing_ratio"] = float(output_skew_kur_stats[column_name]["n_missing"]/Y.size)
+    target_meta["target_unique_ratio"]=target_unique_ratio
+    target_meta['target_n_unique']=target_n_unique
+    #--------------------------------
+    # output_display(n_rows,n_total,n_null,pct_missing,target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio,output_skew_kur_stats,target_outlier_count,target_outlier_pct)
+    #--------------------------------
+    return target_meta
 
 
-if __name__ == "__main__":
-    file_path="../../data/Travel.csv"
+def reg_meta(path,column_name):
+    file_path = path
     df = pd.read_csv(file_path)
-    output_column= "MonthlyIncome"
+    output_column= column_name
 
     X=df.drop(columns=[output_column])
     Y=df[[output_column]]
 
-    X_analysis(X)
-    Y_analysis(Y,output_column)
+    meta_vector = X_analysis(X)
+    meta_vector["missing_ratio"] = float(df.isna().sum().sum() / df.size)
+
+    target_meta = Y_analysis(Y,output_column)
+    meta_vector.update(target_meta)
     
+    # print("-------------Final Meta Vector-----------------\n\n",meta_vector)
+
+    return meta_vector
+
