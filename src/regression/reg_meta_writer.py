@@ -3,16 +3,19 @@ import hashlib
 import pandas as pd
 import numpy as np
 from regression.reg_analyzer import reg_meta
-from utils.id_creation import dataset_id_from_file
+from utils.id_creation import save_uploaded_dataset
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_PATH = os.path.join(BASE_DIR, "data", "Travel.csv")
-META_CSV = os.path.join(BASE_DIR, "data", "meta_reg.csv")
+META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
+
+uploaded_path = os.path.join(BASE_DIR, "Travel.csv")
+DATA_PATH, id = save_uploaded_dataset(uploaded_path)
 
 column_name = "MonthlyIncome"
 meta = reg_meta(DATA_PATH, column_name)
-id = dataset_id_from_file(DATA_PATH)
+
+
 
 HEADER_ORDER = [
   "dataset_id","source","target_column","timestamp",
