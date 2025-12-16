@@ -15,13 +15,13 @@ class RegressionPreprocessor:
         self.dataset_id = dataset_id
         self.numeric_cols = []
         self.cat_cols = []
-        self.dropped_cols =[]
+        self.dropped_cols = set()
         self.numeric_medians = {}
         self.outlier_caps = {}
         self.log_cols = [] 
         self.cat_impute_values = {} 
         self.encoder = None
-        self.scaler = None
+        self.scaler = StandardScaler()
         self.final_feature_names = []
         self.n_rows_before = 0
         self.n_rows_after = 0
@@ -30,139 +30,173 @@ class RegressionPreprocessor:
     def fit(self, df):
         df = df.copy()
         self.n_rows_before = len(df)
-        
-        # 1. CLEAN TARGET & ID DROPPING LOGIC
+
+        # 1. DROP ROWS WITH MISSING TARGET
         df.dropna(subset=[self.target_column], inplace=True)
-        
+
+        # 2. DETECT ID / INDEX / ARTIFACT COLUMNS
+        ID_KEYWORDS = ["id", "index", "row", "level", "unnamed"]
+
         for col in df.columns:
-            if 'id' in col.lower() and df[col].nunique() / len(df) > 0.9:
-                self.dropped_cols.append(col)
-        
-        cols_to_keep = [c for c in df.columns if c not in self.dropped_cols]
-        df = df[cols_to_keep]
+            col_lower = col.lower()
+
+            # Case 1: obvious index artifacts
+            if col_lower.startswith("unnamed") or col_lower in ["index", "level_0"]:
+                self.dropped_cols.add(col)
+                continue
+
+            # Case 2: ID-like name + numeric behavior
+            if any(k in col_lower for k in ID_KEYWORDS):
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    unique_ratio = df[col].nunique() / len(df)
+
+                    if unique_ratio > 0.9:
+                        if df[col].is_monotonic_increasing or df[col].is_monotonic_decreasing:
+                            self.dropped_cols.add(col)
+
+
+            if "id" in col_lower and df[col].nunique() / len(df) > 0.9:
+                self.dropped_cols.add(col)
+
+        # APPLY DROPS
+        df = df.drop(columns=list(self.dropped_cols), errors="ignore")
         self.n_rows_after = len(df)
 
-        # 2. SEPARATE TYPES
-        feature_df = df.drop(columns=[self.target_column], errors='ignore')
-        
+        # 3. SEPARATE FEATURES
+        feature_df = df.drop(columns=[self.target_column], errors="ignore")
+
         self.numeric_cols = feature_df.select_dtypes(include=["number"]).columns.tolist()
         self.cat_cols = feature_df.select_dtypes(include=["object", "category"]).columns.tolist()
 
-        # 3. NUMERIC PROCESSING
+        # 4. NUMERIC STATS
         for col in self.numeric_cols:
             median = df[col].median()
             self.numeric_medians[col] = median
-            
-            temp_series = df[col].fillna(median)
-            
-            lower = temp_series.quantile(0.01)
-            upper = temp_series.quantile(0.99)
+
+            temp = df[col].fillna(median)
+            lower = temp.quantile(0.01)
+            upper = temp.quantile(0.99)
             self.outlier_caps[col] = (lower, upper)
-            
-            capped_series = np.clip(temp_series, lower, upper)
-            if capped_series.skew() > 1 or capped_series.skew() < -1:
+
+            capped = np.clip(temp, lower, upper)
+            if capped.skew() > 1 or capped.skew() < -1:
                 self.log_cols.append(col)
 
-        # 4. CATEGORICAL PROCESSING
-        cols_to_remove_cat = []
+        # 5. CATEGORICAL STATS
+        cols_to_remove = []
         for col in self.cat_cols:
             unique_ratio = df[col].nunique() / len(df)
             try:
-                top_val_freq = df[col].value_counts(normalize=True).iloc[0]
+                top_freq = df[col].value_counts(normalize=True).iloc[0]
             except IndexError:
-                top_val_freq = 0
-            
-            if unique_ratio > 0.2:
-                self.dropped_cols.append(col)
-                cols_to_remove_cat.append(col)
-            elif top_val_freq > 0.95:
-                self.dropped_cols.append(col)
-                cols_to_remove_cat.append(col)
-            else:
-                if not df[col].mode().empty:
-                    self.cat_impute_values[col] = df[col].mode()[0]
-                else:
-                    self.cat_impute_values[col] = "Missing"
+                top_freq = 0
 
-        self.cat_cols = [c for c in self.cat_cols if c not in cols_to_remove_cat]
-        
+            if unique_ratio > 0.2 or top_freq > 0.95:
+                self.dropped_cols.add(col)
+                cols_to_remove.append(col)
+            else:
+                self.cat_impute_values[col] = (
+                    df[col].mode()[0] if not df[col].mode().empty else "Missing"
+                )
+
+        self.cat_cols = [c for c in self.cat_cols if c not in cols_to_remove]
+
+        # 6. FIT ENCODER
         if self.cat_cols:
             temp_cat = df[self.cat_cols].copy()
             for col in self.cat_cols:
-                temp_cat[col] = temp_cat[col].fillna(self.cat_impute_values[col])
-                
-            self.encoder = OneHotEncoder(drop='first', sparse_output=False, dtype=int, handle_unknown='ignore')
+                temp_cat[col] = temp_cat[col].fillna(self.cat_impute_values[col]).astype(str)
+
+            self.encoder = OneHotEncoder(
+                drop="first",
+                sparse_output=False,
+                handle_unknown="ignore",
+                dtype=int
+            )
             self.encoder.fit(temp_cat)
 
-    
+        # 7. BUILD FINAL FEATURE MATRIX
+        temp_df = df.copy()
+        temp_df = temp_df.drop(columns=[self.target_column], errors="ignore")
+
+        for col in self.numeric_cols:
+            temp_df[col] = temp_df[col].fillna(self.numeric_medians[col])
+            low, high = self.outlier_caps[col]
+            temp_df[col] = np.clip(temp_df[col], low, high)
+            if col in self.log_cols:
+                temp_df[col] = np.sign(temp_df[col]) * np.log1p(np.abs(temp_df[col]))
+
+        if self.cat_cols and self.encoder:
+            temp_cat = temp_df[self.cat_cols].copy()
+            for col in self.cat_cols:
+                temp_cat[col] = temp_cat[col].fillna(self.cat_impute_values[col]).astype(str)
+
+            encoded = self.encoder.transform(temp_cat)
+            encoded_df = pd.DataFrame(
+                encoded,
+                columns=self.encoder.get_feature_names_out(self.cat_cols),
+                index=temp_df.index
+            )
+
+            temp_df = pd.concat([temp_df.drop(columns=self.cat_cols), encoded_df], axis=1)
+
+        self.final_feature_names = temp_df.columns.tolist()
+
+        # 8. FIT SCALER
+        self.scaler.fit(temp_df)
+
+
     def transform(self, df):
         df = df.copy()
-        
-        # 1. Drop Rows (Target) & IDs
+
+        # 1. DROP TARGET NA (IF PRESENT)
         if self.target_column in df.columns:
             df.dropna(subset=[self.target_column], inplace=True)
-            
-        df.drop(columns=[c for c in self.dropped_cols if c in df.columns], inplace=True, errors='ignore')
-        
-        # 2. NUMERICS
-        present_num = [c for c in self.numeric_cols if c in df.columns]
-        
-        for col in present_num:
-            # Impute
-            df[col] = df[col].fillna(self.numeric_medians.get(col, 0))
-            
-            # Cap
-            if col in self.outlier_caps:
-                lower, upper = self.outlier_caps[col]
-                df[col] = np.clip(df[col], lower, upper)
-            
-            # Log
-            if col in self.log_cols:
-                df[col] = np.sign(df[col]) * np.log1p(np.abs(df[col]))
 
-        # 3. CATEGORICALS
-        present_cat = [c for c in self.cat_cols if c in df.columns]
-        
-        if present_cat:
-            for col in present_cat:
-                val = self.cat_impute_values.get(col, "Missing")
-                df[col] = df[col].fillna(val)
-                df[col] = df[col].astype(str)
+        # 2. DROP LEARNED COLUMNS
+        df.drop(columns=list(self.dropped_cols), errors="ignore", inplace=True)
 
-            # Encode
-            if self.encoder:
-                encoded_arr = self.encoder.transform(df[present_cat])
-                feat_names = self.encoder.get_feature_names_out(present_cat)
-                encoded_df = pd.DataFrame(encoded_arr, columns=feat_names, index=df.index)
-                
-                df = pd.concat([df, encoded_df], axis=1)
-                df.drop(columns=present_cat, inplace=True)
+        # 3. NUMERIC TRANSFORMS
+        for col in self.numeric_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(self.numeric_medians[col])
+                low, high = self.outlier_caps[col]
+                df[col] = np.clip(df[col], low, high)
+                if col in self.log_cols:
+                    df[col] = np.sign(df[col]) * np.log1p(np.abs(df[col]))
 
-        # 4. SCALING
-        feature_cols = [c for c in df.columns if c != self.target_column]
-        self.final_feature_names = feature_cols
-        
-        if self.scaler:
-            df[feature_cols] = self.scaler.transform(df[feature_cols])
-        
-        #STEP 5: MOVE TARGET TO THE END ---
+        # 4. CATEGORICAL TRANSFORMS
+        if self.cat_cols and self.encoder:
+            temp_cat = df[self.cat_cols].copy()
+            for col in self.cat_cols:
+                temp_cat[col] = temp_cat[col].fillna(self.cat_impute_values[col]).astype(str)
+
+            encoded = self.encoder.transform(temp_cat)
+            encoded_df = pd.DataFrame(
+                encoded,
+                columns=self.encoder.get_feature_names_out(self.cat_cols),
+                index=df.index
+            )
+
+            df = pd.concat([df.drop(columns=self.cat_cols), encoded_df], axis=1)
+
+        # 5. SCALE
+        df[self.final_feature_names] = self.scaler.transform(
+            df[self.final_feature_names]
+        )
+
+        # 6. MOVE TARGET TO END
         if self.target_column in df.columns:
-            cols_ordered = [c for c in df.columns if c != self.target_column] + [self.target_column]
-            df = df[cols_ordered]
-            
+            df = df[self.final_feature_names + [self.target_column]]
+        else:
+            df = df[self.final_feature_names]
+
         return df
 
 
     def fit_transform(self, df):
         self.fit(df)
-        transformed_df = self.transform(df)
-
-        feature_cols = [c for c in transformed_df.columns if c != self.target_column]
-        
-        self.scaler = StandardScaler()
-        transformed_df[feature_cols] = self.scaler.fit_transform(transformed_df[feature_cols])
-        
-        return transformed_df
+        return self.transform(df)
     
 
     def save(self, directory="models/preprocessors"):
@@ -179,7 +213,7 @@ class RegressionPreprocessor:
             "target": self.target_column,
             "rows_raw": self.n_rows_before,
             "rows_clean": self.n_rows_after,
-            "dropped_columns": self.dropped_cols,
+            "dropped_columns": sorted(list(self.dropped_cols)),
             "log_transformed": self.log_cols,
             "numeric_cols_count": len(self.numeric_cols),
             "categorical_cols_count": len(self.cat_cols),

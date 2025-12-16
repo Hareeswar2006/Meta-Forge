@@ -1,1 +1,18 @@
-.metaforge_venv/
+# Python
+__pycache__/
+*.pyc
+
+# Environments
+metaforge_venv/
+
+# Data
+data/
+*.csv
+
+# Models & artifacts
+models/
+*.pkl
+*.joblib
+
+# OS
+.DS_Store
