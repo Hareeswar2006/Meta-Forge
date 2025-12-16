@@ -9,10 +9,10 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
 
-uploaded_path = os.path.join(BASE_DIR, "Travel.csv")
+uploaded_path = os.path.join(BASE_DIR, "8a3727f4cf54ac1a.csv")
 DATA_PATH, id = save_uploaded_dataset(uploaded_path)
 
-column_name = "MonthlyIncome"
+column_name = "median_house_value"
 meta = reg_meta(DATA_PATH, column_name)
 
 

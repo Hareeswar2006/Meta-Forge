@@ -1,0 +1,13 @@
+{
+    "dataset_id": "09945d4b4876ad48",
+    "target": "Salary",
+    "rows_raw": 30,
+    "rows_clean": 30,
+    "dropped_columns": [
+        "Unnamed: 0"
+    ],
+    "log_transformed": [],
+    "numeric_cols_count": 1,
+    "categorical_cols_count": 0,
+    "features_out": 1
+}

@@ -1,0 +1,17 @@
+{
+    "dataset_id": "8a3727f4cf54ac1a",
+    "target": "median_house_value",
+    "rows_raw": 20640,
+    "rows_clean": 20640,
+    "dropped_columns": [],
+    "log_transformed": [
+        "total_rooms",
+        "total_bedrooms",
+        "population",
+        "households",
+        "median_income"
+    ],
+    "numeric_cols_count": 8,
+    "categorical_cols_count": 1,
+    "features_out": 12
+}

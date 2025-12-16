@@ -1,0 +1,11 @@
+{
+    "dataset_id": "137f755ad6fd3bc6",
+    "target": "Sales",
+    "rows_raw": 200,
+    "rows_clean": 200,
+    "dropped_columns": [],
+    "log_transformed": [],
+    "numeric_cols_count": 3,
+    "categorical_cols_count": 0,
+    "features_out": 3
+}
