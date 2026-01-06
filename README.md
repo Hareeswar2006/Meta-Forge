@@ -36,25 +36,17 @@ The goal is to reduce repetitive experimentation and guide model selection effic
 
 ## 🏗️ Architecture Overview
 Dataset
-↓
+->
 Meta-Feature Extractor
-↓
+->
 Preprocessing Pipeline
-↓
+->
 Model Evaluation
-↓
+->
 Meta-Dataset Logger
 
 
 ---
-
-## ▶️ How to Run
-```bash
-git clone https://github.com/your-username/Meta-Forge.git
-cd Meta-Forge
-pip install -r requirements.txt
-python main.py
-```
 
 📌 Current Status
 
@@ -78,4 +70,5 @@ python main.py
 
 👨‍💻 Author
 - Nallabantu Hareeswar
+
 
