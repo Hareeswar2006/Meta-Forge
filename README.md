@@ -76,5 +76,6 @@ python main.py
 
 - Support for larger datasets
 
-👨‍💻 Authors
-- Developed by Nallabantu Hareeswar
+👨‍💻 Author
+- Nallabantu Hareeswar
+
