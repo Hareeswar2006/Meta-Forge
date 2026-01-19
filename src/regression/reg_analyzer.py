@@ -321,10 +321,45 @@ def Y_analysis(Y,column_name):
     return target_meta
 
 
+def get_correlations(df, output_column):
+    temp_df = df.copy()
+    for col in temp_df.select_dtypes(include = ['object', 'category']).columns:
+        temp_df[col] = pd.factorize(temp_df[col])[0]
+
+    if output_column not in temp_df.columns:
+        return 0.0, 0.0, 0.0, 0.0
+    
+    X = temp_df.drop(columns = [output_column])
+    y = temp_df[output_column]
+
+    if X.shape[1] == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    
+    target_corrs = X.corrwith(y).abs()
+
+    target_corrs = target_corrs.fillna(0)
+
+    mean_corr_with_target = float(target_corrs.mean())
+    max_corr_with_target = float(target_corrs.max())
+
+    corr_matrix = X.corr().abs().fillna(0)
+
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    avg_corr_features = float(upper_tri.stack().mean())
+    max_corr_features = float(upper_tri.stack().max())
+
+    if pd.isna(avg_corr_features): avg_corr_features = 0.0
+    if pd.isna(max_corr_features): max_corr_features = 0.0
+
+    return avg_corr_features, max_corr_features, mean_corr_with_target, max_corr_with_target
+
+
 def reg_meta(path,column_name):
     file_path = path
     df = pd.read_csv(file_path)
     output_column= column_name
+
+    avg_corr, max_corr, mean_corr_target, max_corr_target = get_correlations(df, output_column)
 
     X=df.drop(columns=[output_column])
     Y=df[[output_column]]
@@ -332,10 +367,15 @@ def reg_meta(path,column_name):
     meta_vector = X_analysis(X)
     meta_vector["missing_ratio"] = float(df.isna().sum().sum() / df.size)
 
+    meta_vector["avg_corr_features"] = avg_corr
+    meta_vector["max_corr_features"] = max_corr
+    meta_vector["mean_corr_with_target"] = mean_corr_target
+    meta_vector["max_corr_with_target"] = max_corr_target
+
     target_meta = Y_analysis(Y,output_column)
     meta_vector.update(target_meta)
     
-    # print("-------------Final Meta Vector-----------------\n\n",meta_vector)
+    print("-------------Final Meta Vector-----------------\n\n",meta_vector)
 
     return meta_vector
 

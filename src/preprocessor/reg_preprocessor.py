@@ -111,7 +111,9 @@ class RegressionPreprocessor:
                 drop="first",
                 sparse_output=False,
                 handle_unknown="ignore",
-                dtype=int
+                dtype=int,
+                min_frequency=0.01,
+                max_categories=20
             )
             self.encoder.fit(temp_cat)
 

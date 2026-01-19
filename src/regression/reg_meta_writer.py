@@ -9,10 +9,10 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
 
-uploaded_path = os.path.join(BASE_DIR, "8a3727f4cf54ac1a.csv")
+uploaded_path = os.path.join(BASE_DIR, "sales.csv")
 DATA_PATH, id = save_uploaded_dataset(uploaded_path)
 
-column_name = "median_house_value"
+column_name = "Sales"
 meta = reg_meta(DATA_PATH, column_name)
 
 
@@ -24,6 +24,7 @@ HEADER_ORDER = [
   "avg_skew","pct_skew_gt_1","avg_kur","pct_heavy_tailed",
   "avg_std","pct_low_variance","avg_outlier_pct","pct_columns_with_outliers",
   "avg_pct_zero","avg_pct_pos","avg_unique_ratio","pct_high_cardinality_cols",
+  "avg_corr_features","max_corr_features","mean_corr_with_target","max_corr_with_target",
   "target_mean","target_std","target_skewness_val","target_kurtosis_val",
   "target_outlier_pct","target_missing_ratio","target_unique_ratio","target_n_unique",
   "best_model_label"
@@ -54,7 +55,7 @@ def build_row_dict(meta, id, source, target_column):
         else:
             row[key] = 0.0 if ("pct" in key or "avg" in key or "std" in key or "mean" in key or "ratio" in key or "n_" in key or "count" in key) else ""
 
-    row.setdefault("best_model_label", "")
+    row.setdefault("best_model_label", "Nil")
 
     return row
 

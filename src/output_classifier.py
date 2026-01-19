@@ -25,8 +25,8 @@ def classify(file_path,column_name):
     return prob_type
 
 if __name__=="__main__":
-    file_path = "../advertising.csv"
-    column_name = "Sales"
+    file_path = "../Travel.csv"
+    column_name = "MonthlyIncome"
     output_type = classify(file_path, column_name)
 
     print("Problem type:  ",output_type)

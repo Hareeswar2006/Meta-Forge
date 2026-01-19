@@ -41,7 +41,9 @@ def load_dataset_info(dataset_id):
     return df, target_col
 
 
-def train_evaluate_models(X_train, X_val, y_train, y_val):
+from sklearn.model_selection import cross_val_score, KFold
+
+def train_evaluate_models(X, y):
     models = {
         "LinearRegression": LinearRegression(),
         "Ridge": Ridge(alpha=1.0),
@@ -51,27 +53,28 @@ def train_evaluate_models(X_train, X_val, y_train, y_val):
     }
     
     results = []
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
     
-    print(f"\nTraining {len(models)} candidate models...")
+    print(f"\nBenchmarking {len(models)} models with 5-Fold CV...")
     
     for name, model in models.items():
-        model.fit(X_train, y_train)
+        neg_mse_scores = cross_val_score(model, X, y, cv=kf, scoring='neg_mean_squared_error')
+        rmse_scores = np.sqrt(-neg_mse_scores)
         
-        y_pred = model.predict(X_val)
+        r2_scores = cross_val_score(model, X, y, cv=kf, scoring='r2')
         
-        rmse = np.sqrt(mean_squared_error(y_val, y_pred))
-        mae = mean_absolute_error(y_val, y_pred)
-        r2 = r2_score(y_val, y_pred)
+        avg_rmse = np.mean(rmse_scores)
+        avg_r2 = np.mean(r2_scores)
         
-        
-        print(f"  -> {name}: RMSE={rmse:.4f}, R2={r2:.4f}")
+        print(f"  -> {name}: CV-RMSE={avg_rmse:.4f}, CV-R2={avg_r2:.4f}")
+
+        model.fit(X, y)
         
         results.append({
             "model_name": name,
-            "model_obj": model,
-            "rmse": rmse,
-            "mae": mae,
-            "r2": r2,
+            "model_obj": model, 
+            "rmse": avg_rmse,   
+            "r2": avg_r2
         })
 
     results_sorted = sorted(results, key=lambda x: x['rmse'])
@@ -106,11 +109,15 @@ def update_meta_log(dataset_id, best_result):
         return
 
     df_meta = pd.read_csv(META_REG_CSV)
-    
+    df_meta['best_model_label'] = df_meta['best_model_label'].astype(object)
+    if 'best_model_label' not in df_meta.columns:
+        df_meta['best_model_label'] = None
+        df_meta['best_model_label'] = df_meta['best_model_label'].astype('object')
+
     if dataset_id in df_meta['dataset_id'].values:
         idx = df_meta[df_meta['dataset_id'] == dataset_id].index[0]
         
-        df_meta.at[idx, 'best_model_label'] = best_result['model_name']
+        df_meta.loc[idx, 'best_model_label'] = best_result['model_name']
 
         df_meta.to_csv(META_REG_CSV, index=False)
         print(f"meta_reg.csv updated for {dataset_id}")
@@ -167,9 +174,7 @@ def run_bench(dataset_id):
     X = df.drop(columns=[target_col])
     y = df[target_col]
     
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    results = train_evaluate_models(X_train, X_val, y_train, y_val)
+    results = train_evaluate_models(X, y)
 
     winner = select_smart_winner(results)
     
