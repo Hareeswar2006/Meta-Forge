@@ -58,7 +58,7 @@ class RegressionPreprocessor:
             if "id" in col_lower and df[col].nunique() / len(df) > 0.9:
                 self.dropped_cols.add(col)
 
-        # APPLY DROPS
+        # APPLY DROPS (From Step 2)
         df = df.drop(columns=list(self.dropped_cols), errors="ignore")
         self.n_rows_after = len(df)
 
@@ -92,7 +92,7 @@ class RegressionPreprocessor:
                 top_freq = 0
 
             if unique_ratio > 0.2 or top_freq > 0.95:
-                self.dropped_cols.add(col)
+                self.dropped_cols.add(col) # <--- Added to list, but not dropped from 'df' yet
                 cols_to_remove.append(col)
             else:
                 self.cat_impute_values[col] = (
@@ -119,6 +119,10 @@ class RegressionPreprocessor:
 
         # 7. BUILD FINAL FEATURE MATRIX
         temp_df = df.copy()
+        
+        temp_df = temp_df.drop(columns=list(self.dropped_cols), errors="ignore")
+        # --------------------------
+
         temp_df = temp_df.drop(columns=[self.target_column], errors="ignore")
 
         for col in self.numeric_cols:
@@ -140,11 +144,18 @@ class RegressionPreprocessor:
                 index=temp_df.index
             )
 
+            # Drop the original categorical columns and attach the new encoded ones
             temp_df = pd.concat([temp_df.drop(columns=self.cat_cols), encoded_df], axis=1)
 
-        self.final_feature_names = temp_df.columns.tolist()
-
         # 8. FIT SCALER
+        self.final_feature_names = temp_df.columns.tolist()
+        
+        non_numeric_leftovers = temp_df.select_dtypes(exclude=["number"]).columns
+        if len(non_numeric_leftovers) > 0:
+            print(f"Warning: Dropping leftover non-numeric columns before scaling: {non_numeric_leftovers.tolist()}")
+            temp_df = temp_df.drop(columns=non_numeric_leftovers)
+            self.final_feature_names = temp_df.columns.tolist()
+
         self.scaler.fit(temp_df)
 
 

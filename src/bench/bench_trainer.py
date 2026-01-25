@@ -47,9 +47,9 @@ def train_evaluate_models(X, y):
     models = {
         "LinearRegression": LinearRegression(),
         "Ridge": Ridge(alpha=1.0),
-        "Lasso": Lasso(alpha=0.1, max_iter=15000),
-        "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1),
-        "GradientBoosting": GradientBoostingRegressor(n_estimators=100, random_state=42)
+        "Lasso": Lasso(alpha=0.1, tol=0.1),
+        "RandomForest": RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1),
+        "GradientBoosting": GradientBoostingRegressor(n_estimators=50, random_state=42, subsample=0.8)
     }
     
     results = []
@@ -170,6 +170,11 @@ def run_bench(dataset_id):
     print(f"Starting Bench Training for: {dataset_id}")
     
     df, target_col = load_dataset_info(dataset_id)
+
+    MAX_ROWS = 50000
+    if len(df) > MAX_ROWS:
+        print(f"  [WARN] Dataset is huge ({len(df)} rows). Downsampling to {MAX_ROWS} for speed.")
+        df = df.sample(n=MAX_ROWS, random_state=42)
     
     X = df.drop(columns=[target_col])
     y = df[target_col]

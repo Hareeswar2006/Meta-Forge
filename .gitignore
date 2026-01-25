@@ -16,3 +16,9 @@ models/
 
 # OS
 .DS_Store
+
+#datasets
+datasets/
+
+# dataset_miner
+src/dataset_miner.py

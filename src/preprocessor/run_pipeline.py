@@ -4,9 +4,9 @@ import os
 from preprocessor.reg_preprocessor import RegressionPreprocessor
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "137f755ad6fd3bc6.csv")
-TARGET = "Sales"
-DATASET_ID = "137f755ad6fd3bc6"
+DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "db9f62a1c5d2e84b.csv")
+TARGET = "price"
+DATASET_ID = "db9f62a1c5d2e84b"
 OUTPUT_DIR = os.path.join(BASE_DIR, "models", "preprocessors")
 DATA_OUTPUT_DIR = os.path.join(BASE_DIR, "data", "preprocessed")
     
