@@ -1,5 +1,4 @@
- ## 🧠 PickMyModel ⚙️
- *Choosing models so you don’t have to.*
+# PickMyModel 🧠⚙️ `_Choosing models so you don’t have to._`
 
 ### An intelligent AutoML engine that analyzes user datasets, identifies problem types, and recommends optimal machine learning models using meta-learning.
 
@@ -72,6 +71,7 @@ Meta-Dataset Logger
 
 👨‍💻 Author
 - Nallabantu Hareeswar
+
 
 
 
