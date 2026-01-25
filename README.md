@@ -1,6 +1,7 @@
-> # 🧠 PickMyModel ⚙️
-> *Choosing models so you don’t have to.*
-An intelligent AutoML engine that analyzes user datasets, identifies problem types, and recommends optimal machine learning models using meta-learning.
+ # 🧠 PickMyModel ⚙️
+ *Choosing models so you don’t have to.*
+
+### An intelligent AutoML engine that analyzes user datasets, identifies problem types, and recommends optimal machine learning models using meta-learning.
 
 ## 🚀 Overview
 Meta-Forge automates the early stages of machine learning by:
@@ -71,6 +72,7 @@ Meta-Dataset Logger
 
 👨‍💻 Author
 - Nallabantu Hareeswar
+
 
 
 
