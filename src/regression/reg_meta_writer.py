@@ -10,7 +10,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
 
 uploaded_path = os.path.join(BASE_DIR, "datasets", "house_sales.csv")
-DATA_PATH, id = save_uploaded_dataset(uploaded_path)
+DATA_PATH, id = save_uploaded_dataset(uploaded_path, "regression")
 
 column_name = "price"
 meta = reg_meta(DATA_PATH, column_name)
@@ -32,7 +32,7 @@ HEADER_ORDER = [
 
 def validate_meta_flat(meta):
     if not isinstance(meta,dict):
-        raise ValueError("meta data must be a dict")
+        raise ValueError("Meta data must be a dict")
     bad =[k for k,v in meta.items() if isinstance(v,(dict,list,tuple,set))]
     if bad:
         raise ValueError(f"Nested values found in the meta data")
@@ -86,7 +86,7 @@ def create_meta_file(path, header, row):
 def append_if_new(path, header, row):
     # read existing
     df = pd.read_csv(path)
-    # ensure header matches (simple check)
+
     existing_cols = list(df.columns)
     if existing_cols != header:
         raise RuntimeError(f"Header mismatch!\nExisting: {existing_cols}\nExpected: {header}")
@@ -96,7 +96,7 @@ def append_if_new(path, header, row):
         print(f"Dataset_id {row['dataset_id']} already present — skipping append.")
         return False
 
-    # append and save (atomic-ish: write to temp then replace)
+    # append and save
     tmp = path + ".tmp"
     df2 = pd.concat([df, pd.DataFrame([row], columns=header)], ignore_index=True)
     df2.to_csv(tmp, index=False)

@@ -10,7 +10,7 @@ def dataset_id_from_file(path):
     return h.hexdigest()[:16]
 
 
-def save_uploaded_dataset(uploaded_path):
+def save_uploaded_dataset(uploaded_path, problem_type):
     """
     Takes the path of a user-uploaded CSV file and renames it to:
         data/raw/<dataset_id>.csv
@@ -22,7 +22,7 @@ def save_uploaded_dataset(uploaded_path):
     dataset_id = dataset_id_from_file(uploaded_path)
 
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    raw_dir = os.path.join(base_dir, "data", "raw")
+    raw_dir = os.path.join(base_dir, "data", "raw", problem_type)
 
     os.makedirs(raw_dir, exist_ok=True)
 

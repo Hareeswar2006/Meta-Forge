@@ -12,10 +12,10 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PREPROCESSOR_DIR = os.path.join(BASE_DIR, "models", "preprocessors")
-PREPROCESSED_DIR = os.path.join(BASE_DIR, "data", "preprocessed")
-MODEL_DIR = os.path.join(BASE_DIR, "models", "best_models")
-BENCH_ARCHIVE_DIR = os.path.join(BASE_DIR, "models", "bench_archive")
+PREPROCESSOR_DIR = os.path.join(BASE_DIR, "models", "preprocessors","regression")
+PREPROCESSED_DIR = os.path.join(BASE_DIR, "data", "preprocessed","regression")
+MODEL_DIR = os.path.join(BASE_DIR, "models", "best_models","regression")
+BENCH_ARCHIVE_DIR = os.path.join(BASE_DIR, "models", "bench_archive","regression")
 META_REG_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
 SIMPLE_MODELS = ["LinearRegression", "Ridge", "Lasso"]
 R2_SIMPLICITY_THRESHOLD = 0.02

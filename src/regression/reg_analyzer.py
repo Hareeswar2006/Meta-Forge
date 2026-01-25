@@ -13,7 +13,7 @@ def stats_analyzer(df):
     total_null_values=df.isna().sum().sum()
     pct_total = (total_null_values/total_values)*100
 
-    if df.shape[1]>1:
+    if df.shape[1]>=1:
         n_rows=df.shape[0]
         n_cols=df.shape[1]
         numerical_df = df.select_dtypes(include='number')
@@ -375,7 +375,7 @@ def reg_meta(path,column_name):
     target_meta = Y_analysis(Y,output_column)
     meta_vector.update(target_meta)
     
-    print("-------------Final Meta Vector-----------------\n\n",meta_vector)
+    print("-------------Regression Meta Vector-----------------\n\n",meta_vector)
 
     return meta_vector
 
