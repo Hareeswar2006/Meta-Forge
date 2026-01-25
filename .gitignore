@@ -7,6 +7,7 @@ metaforge_venv/
 
 # Data
 data/
+data/meta_reg.csv
 *.csv
 
 # Models & artifacts
