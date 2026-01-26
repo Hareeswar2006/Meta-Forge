@@ -352,6 +352,72 @@ def target_analyzer(df, output_column):
     }
 
 
+def compute_correlation_meta(df, output_column):
+    if output_column not in df.columns:
+        return {
+            "mean_abs_corr_target": 0.0,
+            "max_corr_target": 0.0,
+            "mean_inter_feature_corr": 0.0
+        }
+
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    numeric_cols = [c for c in numeric_cols if c != output_column]
+
+    if len(numeric_cols) == 0:
+        return {
+            "mean_abs_corr_target": 0.0,
+            "max_corr_target": 0.0,
+            "mean_inter_feature_corr": 0.0
+        }
+
+    df_clean = df[numeric_cols + [output_column]].dropna()
+    if df_clean.shape[0] < 2:
+        return {
+            "mean_abs_corr_target": 0.0,
+            "max_corr_target": 0.0,
+            "mean_inter_feature_corr": 0.0
+        }
+
+    if len(numeric_cols) < 2:
+        avg_inter_feature_corr = 0.0
+    else:
+        corr_mat = df_clean[numeric_cols].corr().abs()
+        upper = corr_mat.where(
+            np.triu(np.ones(corr_mat.shape), k=1).astype(bool)
+        )
+        vals = upper.stack().values
+        avg_inter_feature_corr = vals.mean() if len(vals) > 0 else 0.0
+
+    target_vals = df_clean[output_column]
+    unique_classes = target_vals.unique()
+
+    if len(unique_classes) != 2:
+        return {
+            "mean_abs_corr_target": 0.0,
+            "max_corr_target": 0.0,
+            "mean_inter_feature_corr": float(avg_inter_feature_corr)
+        }
+
+    mapping = {unique_classes[0]: 0, unique_classes[1]: 1}
+    y_bin = target_vals.map(mapping)
+
+    corr_with_target = (
+        df_clean[numeric_cols]
+        .corrwith(y_bin)
+        .abs()
+        .dropna()
+    )
+
+    mean_abs_corr_target = corr_with_target.mean() if len(corr_with_target) > 0 else 0.0
+    max_corr_target = corr_with_target.max() if len(corr_with_target) > 0 else 0.0
+
+    return {
+        "mean_abs_corr_target": float(mean_abs_corr_target),
+        "max_corr_target": float(max_corr_target),
+        "mean_inter_feature_corr": float(avg_inter_feature_corr)
+    }
+
+
 def classification_meta(path, column_name):
     df = pd.read_csv(path)
     target_column = column_name
@@ -365,6 +431,9 @@ def classification_meta(path, column_name):
 
     numeric_feature_distribution_features = numeric_feature_distribution_analyzer(df, target_column)
     meta_vector.update(numeric_feature_distribution_features)
+
+    correlation_features = compute_correlation_meta(df, target_column)
+    meta_vector.update(correlation_features)
 
     categorical_feature_distribution_features = categorical_feature_distribution_analyzer(df, target_column)
     meta_vector.update(categorical_feature_distribution_features)

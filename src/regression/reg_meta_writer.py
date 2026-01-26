@@ -1,4 +1,5 @@
 import os
+import json
 import hashlib
 import pandas as pd
 import numpy as np
@@ -8,12 +9,7 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_reg.csv")
-
-uploaded_path = os.path.join(BASE_DIR, "datasets", "house_sales.csv")
-DATA_PATH, id = save_uploaded_dataset(uploaded_path, "regression")
-
-column_name = "price"
-meta = reg_meta(DATA_PATH, column_name)
+TARGETS_JSON = os.path.join(BASE_DIR, "datasets", "targets.json")
 
 
 
@@ -112,16 +108,39 @@ def verify_last_row(path):
     print("\n\nLast row preview:", last)
 
 
-if __name__ == "__main__":
-    if (validate_meta_flat(meta)):
-        row = build_row_dict(meta, id, DATA_PATH, column_name)
-        coerce_row(row)
+def run_regression_meta_writer():
+    with open(TARGETS_JSON, "r") as f:
+        targets = json.load(f)["regression"]
+
+    for filename, target_col in targets.items():
+        print(f"\n[META] Processing {filename}")
+
+        uploaded_path = os.path.join(BASE_DIR, "datasets", filename)
+
+        if not os.path.exists(uploaded_path):
+            print(f"[SKIP] File not found: {filename}")
+            continue
+
+        # Create raw dataset + dataset_id
+        DATA_PATH, dataset_id = save_uploaded_dataset(
+            uploaded_path, "regression"
+        )
+
+        # Compute meta-features
+        meta = reg_meta(DATA_PATH, target_col)
+
+        if not validate_meta_flat(meta):
+            print(f"[ERROR] Invalid meta for {filename}")
+            continue
+
+        row = build_row_dict(meta, dataset_id, DATA_PATH, target_col)
+        row = coerce_row(row)
+
         if not os.path.exists(META_CSV):
             create_meta_file(META_CSV, HEADER_ORDER, row)
-            verify_last_row(META_CSV)
         else:
-            appended = append_if_new(META_CSV, HEADER_ORDER, row)
-            if appended:
-                verify_last_row(META_CSV)
-    else:
-        print("[ERROR] Meta Dictionary is not flattened......")
+            append_if_new(META_CSV, HEADER_ORDER, row)
+
+
+if __name__ == "__main__":
+    run_regression_meta_writer()

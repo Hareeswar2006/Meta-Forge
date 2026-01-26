@@ -1,4 +1,5 @@
 import os
+import json
 import hashlib
 import pandas as pd
 import numpy as np
@@ -8,12 +9,7 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 META_CSV = os.path.join(BASE_DIR, "data", "meta", "meta_class.csv")
-
-uploaded_path = os.path.join(BASE_DIR, "datasets", "bank-additional-full.csv")
-DATA_PATH, id = save_uploaded_dataset(uploaded_path, "classification")
-
-column_name = "y"
-meta = classification_meta(DATA_PATH, column_name)
+TARGETS_JSON = os.path.join(BASE_DIR, "datasets", "targets.json")
 
 HEADER_ORDER = [
     "dataset_id","source","target_column","timestamp",
@@ -52,6 +48,11 @@ HEADER_ORDER = [
     "imbalance_ratio","target_entropy","normalized_target_entropy",
     "num_rare_classes","rare_class_ratio","num_singleton_classes",
     "target_missing_ratio","effective_sample_size",
+
+    # Target / Correlation Analysis
+    "mean_abs_corr_target",
+    "max_corr_target",
+    "mean_inter_feature_corr",
 
     # Meta Label
     "best_model_label"
@@ -143,17 +144,39 @@ def verify_last_row(path):
     print("\nLast row preview:\n", last)
 
 
-if __name__ == "__main__":
-    if validate_meta_flat(meta):
-        row = build_row_dict(meta, id, DATA_PATH, column_name)
+def run_classification_meta_writer():
+    with open(TARGETS_JSON, "r") as f:
+        targets = json.load(f)["classification"]
+
+    for filename, target_col in targets.items():
+        print(f"\n[META] Processing {filename}")
+
+        uploaded_path = os.path.join(BASE_DIR, "datasets", "classification", filename)
+
+        if not os.path.exists(uploaded_path):
+            print(f"[SKIP] File not found: {filename}")
+            continue
+
+        # Create raw dataset + dataset_id
+        DATA_PATH, dataset_id = save_uploaded_dataset(
+            uploaded_path, "classification"
+        )
+
+        # Compute meta-features
+        meta = classification_meta(DATA_PATH, target_col)
+
+        if not validate_meta_flat(meta):
+            print(f"[ERROR] Invalid meta for {filename}")
+            continue
+
+        row = build_row_dict(meta, dataset_id, DATA_PATH, target_col)
         row = coerce_row(row)
 
         if not os.path.exists(META_CSV):
             create_meta_file(META_CSV, HEADER_ORDER, row)
-            verify_last_row(META_CSV)
         else:
-            appended = append_if_new(META_CSV, HEADER_ORDER, row)
-            if appended:
-                verify_last_row(META_CSV)
-    else:
-        print("[ERROR] Meta dictionary validation failed")
+            append_if_new(META_CSV, HEADER_ORDER, row)
+
+
+if __name__ == "__main__":
+    run_classification_meta_writer()
