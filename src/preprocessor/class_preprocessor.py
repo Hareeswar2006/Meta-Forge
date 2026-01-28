@@ -42,6 +42,9 @@ class ClassificationPreprocessor:
         ID_KEYWORDS = ["id", "index", "row", "level", "unnamed"]
 
         for col in df.columns:
+            if col == self.target_column:
+                continue
+            
             col_lower = col.lower()
 
             if col_lower.startswith("unnamed") or col_lower in ["index", "level_0"]:

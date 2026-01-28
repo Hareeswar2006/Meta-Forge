@@ -26,6 +26,18 @@ HEADER_ORDER = [
   "best_model_label"
 ]
 
+def safe_read_csv(path):
+    encodings = ["utf-8", "latin1", "ISO-8859-1"]
+
+    for enc in encodings:
+        try:
+            return pd.read_csv(path, encoding=enc)
+        except UnicodeDecodeError:
+            continue
+
+    return pd.read_csv(path, encoding="utf-8", errors="ignore")
+
+
 def validate_meta_flat(meta):
     if not isinstance(meta,dict):
         raise ValueError("Meta data must be a dict")
@@ -81,7 +93,7 @@ def create_meta_file(path, header, row):
 
 def append_if_new(path, header, row):
     # read existing
-    df = pd.read_csv(path)
+    df = safe_read_csv(path)
 
     existing_cols = list(df.columns)
     if existing_cols != header:
@@ -102,7 +114,7 @@ def append_if_new(path, header, row):
 
 
 def verify_last_row(path):
-    df = pd.read_csv(path)
+    df = safe_read_csv(path)
     last = df.tail(1).to_dict(orient='records')[0]
     print("Header:", list(df.columns))
     print("\n\nLast row preview:", last)
