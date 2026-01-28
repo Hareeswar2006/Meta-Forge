@@ -8,260 +8,252 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 
-def stats_analyzer(df):
-    total_values=df.size
-    total_null_values=df.isna().sum().sum()
-    pct_total = (total_null_values/total_values)*100
+def _safe_div(n, d):
+    return float(n / d) if d not in (0, 0.0) else 0.0
 
-    if df.shape[1]>=1:
-        n_rows=df.shape[0]
-        n_cols=df.shape[1]
-        numerical_df = df.select_dtypes(include='number')
-        categorical_df = df.select_dtypes(include=['object','category'])
-        n_numerical_cols= numerical_df.shape[1]
-        n_categorical_cols =categorical_df.shape[1]
 
-        numerical_null={}
-        categorical_null={}
-        for column in numerical_df.columns:
-            numerical_null[column] = int(numerical_df[column].isna().sum())
-        for column in categorical_df.columns:
-            categorical_null[column] = int(categorical_df[column].isna().sum())
+def _clean_float(x):
+    if pd.isna(x) or np.isinf(x):
+        return 0.0
+    return float(x)
+
+
+def stats_analyzer(df, output_column):
+    if df is None or df.shape[0] == 0:
+        return [0, 0, 0, 0.0]
+
+    total_values = df.size
+    total_null_values = int(df.isna().sum().sum())
+    pct_total = _safe_div(total_null_values, total_values) * 100
+
+    if output_column not in df.columns:
+        n_rows = df.shape[0]
+        n_cols = df.shape[1]
+
+        numerical_df = df.select_dtypes(include="number")
+        categorical_df = df.select_dtypes(include=["object", "category"])
+
+        numerical_null = {c: int(numerical_df[c].isna().sum()) for c in numerical_df.columns}
+        categorical_null = {c: int(categorical_df[c].isna().sum()) for c in categorical_df.columns}
 
         return [
-            n_rows, n_cols, n_numerical_cols, n_categorical_cols, numerical_df, numerical_null,
-            categorical_df, categorical_null, total_values, total_null_values, pct_total
-            ]
-    
-    else:
-        n_rows=df.shape[0]
+            n_rows,
+            n_cols,
+            numerical_df.shape[1],
+            categorical_df.shape[1],
+            numerical_df,
+            numerical_null,
+            categorical_df,
+            categorical_null,
+            total_values,
+            total_null_values,
+            pct_total,
+        ]
 
-    return [n_rows, total_values, total_null_values, pct_total]
+    return [df.shape[0], total_values, total_null_values, pct_total]
 
 
 def numerical_skew_kurtosis(df):
-    numerical_stats={}
+    stats = {}
     eps = 1e-6
+
+    if df is None or df.shape[1] == 0:
+        return stats
+
     for col in df.columns:
-        n_nonnull = df[col].dropna().shape[0]
-        skew_val=df[col].dropna().skew()
-        kur_val=df[col].dropna().kurtosis()
+        series = df[col].dropna()
+        n_nonnull = series.shape[0]
 
-        if n_nonnull>3:
-            if skew_val>eps:
-                skew_dir="pos"
-            elif skew_val<-eps:
-                skew_dir="neg"
-            else:
-                skew_dir="neutral"
+        if n_nonnull < 3:
+            stats[col] = {
+                "skewness_val": 0.0,
+                "skewness_direction": "None",
+                "kurtosis_val": 0.0,
+                "kurtosis_direction": "None",
+                "n_missing": int(df[col].isna().sum()),
+                "n_unique": int(series.nunique()),
+            }
+            continue
 
-            if kur_val<-0.5:
-                kur_dir="platy"
-            elif kur_val> 0.5:
-                kur_dir="lepto"
-            else:
-                kur_dir="meso"
-        else:
-            skew_val=0
-            skew_dir="None"
-            kur_val=0
-            kur_dir="None"
+        skew_val = _clean_float(series.skew())
+        kur_val = _clean_float(series.kurtosis())
 
-        numerical_stats[col]= {"skewness_val":float(skew_val),"skewness_direction":skew_dir,"kurtosis_val":float(kur_val),"kurtosis_direction":kur_dir,"n_missing": int(df[col].isna().sum()),"n_unique": int(df[col].nunique(dropna=True))}
-    return numerical_stats
+        skew_dir = "pos" if skew_val > eps else "neg" if skew_val < -eps else "neutral"
+        kur_dir = "lepto" if kur_val > 0.5 else "platy" if kur_val < -0.5 else "meso"
+
+        stats[col] = {
+            "skewness_val": skew_val,
+            "skewness_direction": skew_dir,
+            "kurtosis_val": kur_val,
+            "kurtosis_direction": kur_dir,
+            "n_missing": int(df[col].isna().sum()),
+            "n_unique": int(series.nunique()),
+        }
+
+    return stats
+
 
 
 def pca_analysis(df):
-    X = df.copy()
-    threshold = 0.65
-    X = X.dropna(axis=1, thresh=int((1 - threshold) * len(df)))
-    if X.shape[1] == 0 or X.shape[0] < 2:
-        return {"pca_component_1":0.0,"pca_component_2":0.0,"pca_component_3":0.0}
-    
+    if df is None or df.shape[0] < 2 or df.shape[1] == 0:
+        return 0.0, 0.0, 0.0
+
+    X = df.dropna(axis=1, thresh=int(0.35 * len(df)))
+    if X.shape[1] == 0:
+        return 0.0, 0.0, 0.0
+
     X = X.fillna(X.median(numeric_only=True))
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    try:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
-    n_components = min(3, X_scaled.shape[1])
-    pca = PCA(n_components=n_components)
-    pca.fit(X_scaled)
-    explained = pca.explained_variance_ratio_.tolist()
+        n_components = min(3, X_scaled.shape[1])
+        pca = PCA(n_components=n_components)
+        pca.fit(X_scaled)
 
-    while len(explained) < 3:
-        explained.append(0.0)
+        explained = pca.explained_variance_ratio_.tolist()
+        while len(explained) < 3:
+            explained.append(0.0)
 
-    return explained[0], explained[1], explained[2]
+        return tuple(_clean_float(v) for v in explained[:3])
 
-
-def distribution_stats(df,column_name):
-    target_mean = df[column_name].mean()
-    target_std = df[column_name].std(axis=0)
-    target_min = df[column_name].min()
-    target_max = df[column_name].max()
-    target_range = target_max - target_min
-    target_n_unique = df[column_name].nunique()
-    target_unique_ratio = target_n_unique / df.shape[0]
-
-    return float(target_mean),float(target_std),float(target_min),float(target_max),float(target_range),float(target_n_unique),float(target_unique_ratio)
+    except Exception:
+        return 0.0, 0.0, 0.0
 
 
-def outliers(df,column_name):
-    Q1 = df[column_name].quantile(0.25)
-    Q3 = df[column_name].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    target_outlier_count = int(((df[column_name].notnull()) & ((df[column_name] < lower_bound) | (df[column_name] > upper_bound))).sum())
-    target_outlier_pct = float(target_outlier_count / df[column_name].notnull().sum())
+def distribution_stats(df, col):
+    series = df[col].dropna()
+    if series.empty:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
-    return target_outlier_count, target_outlier_pct
+    mean = _clean_float(series.mean())
+    std = _clean_float(series.std())
+    minv = _clean_float(series.min())
+    maxv = _clean_float(series.max())
+    n_unique = int(series.nunique())
 
-
-def pct_and_constant_detection(numerical_df,col):
-    pct_total = len(numerical_df[col])
-    zero_count = (numerical_df[col] == 0).sum()
-    pos_count=(numerical_df[col]>0).sum()
-    neg_count=(numerical_df[col]<0).sum()
-    
-    pct_zero=float(zero_count/pct_total)*100
-    pct_pos = float(pos_count/pct_total)*100
-    pct_neg=float(neg_count/pct_total)*100
-
-    is_constant = numerical_df[col].nunique(dropna=False)==1
-    top_freq_ratio=numerical_df[col].value_counts(normalize=True,dropna=False).iloc[0]
-    is_quasi_constant=bool(top_freq_ratio>=0.95)
-    return pct_zero, pct_pos, pct_neg, is_constant, is_quasi_constant
+    return (
+        mean,
+        std,
+        minv,
+        maxv,
+        _clean_float(maxv - minv),
+        float(n_unique),
+        _safe_div(n_unique, df.shape[0]),
+    )
 
 
-def input_display(nnumerical,numerical_df,numerical_null,total_values,total_null_values,pct_total,numerical_stats,numerical_col_analysis,meta_structure):
-    print("-----------------------------------------")
+def outliers(df, col):
+    series = df[col].dropna()
+    if series.shape[0] < 4:
+        return 0, 0.0
 
-    print("No of numerial rows:",nnumerical)
+    q1, q3 = series.quantile([0.25, 0.75])
+    iqr = q3 - q1
+    lb, ub = q1 - 1.5 * iqr, q3 + 1.5 * iqr
 
-    print("-----------------------------------------")
-
-    print("Numerical DF:\n",numerical_df)
-    print("Numerical null columns: ", numerical_null)
-
-    print("-----------------------------------------")
-
-    print("Total Values :",total_values)
-    print("Total Null values :",total_null_values)
-    print(" Total percentage null values :",pct_total)
-
-    print("-----------------------------------------")
-
-    print("\nNumerical columns statistics (Skewness and Kurtosis):\n\n\n",numerical_stats)
-
-    print("-----------------------------------------")
-    print("\n Numerical column wise analysis: \n",numerical_col_analysis)
-
-    print("-----------------------------------------\n")
-    print("-----Meta Structure----- \n",meta_structure)
+    count = int(((series < lb) | (series > ub)).sum())
+    return count, _safe_div(count, series.shape[0])
 
 
-def output_display(n_rows,n_total,n_null,pct_missing,target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio,output_skew_kur_stats,target_outlier_count,target_outlier_pct):
-    print("\n-------------------------------\n")
-    print("No of rows: ",n_rows)
-    print("Total Values : ",n_total)
-    print("Total Null values : ",n_null)
-    print("Total no of non null values: ",n_total-n_null)
-    print(" Total percentage null values : ",pct_missing)
+def pct_and_constant_detection(df, col):
+    series = df[col].dropna()
+    total = len(series)
 
-    print("\n-------------------------------\n")
+    if total == 0:
+        return 0.0, 0.0, 0.0, True, True
 
-    print("Target column mean: ",target_mean)
-    print("Target column std: ", target_std)
-    print("Target column maximum: ", target_max)
-    print("Target column minimum: ", target_min)
-    print("Target column range: ", target_range)
+    zero = (series == 0).sum()
+    pos = (series > 0).sum()
+    neg = (series < 0).sum()
 
-    print("\n-------------------------------\n")
+    top_freq = series.value_counts(normalize=True).iloc[0]
 
-    print("No of unique in target column: ", target_n_unique)
-    print("Unique values percentage in target column: ", target_unique_ratio)
-
-    print("\n-------------------------------\n")
-
-    print("Target column skewness and kurtosis: ", output_skew_kur_stats)
-    ishighly_skewed = 'Yes' if output_skew_kur_stats[output_column]['skewness_val']> 1 else 'No'
-    print("\nHighy Skewed?? : ",ishighly_skewed)
-    
-    print("\n-------------------------------\n")
-
-    print("Target column outlier count: ", target_outlier_count)
-    print("Target column outlier percentage: ", target_outlier_pct)
+    return (
+        _safe_div(zero, total) * 100,
+        _safe_div(pos, total) * 100,
+        _safe_div(neg, total) * 100,
+        series.nunique() == 1,
+        top_freq >= 0.95,
+    )
 
 
 def aggregate_numeric_stats(col_analysis, col_stats, df):
-    skew_list,kur_list,std_list,outlier_list,pct_zero_list,pct_pos_list,unique_list=[],[],[],[],[],[],[]
-    pos_count,neg_count,heavy_count,outlier_count,std_count,card_count=0,0,0,0,0,0
+    if not col_stats:
+        return {k: 0.0 for k in [
+            "avg_skew","pct_skew_gt_1","avg_kur","pct_heavy_tailed","avg_std",
+            "pct_low_variance","avg_outlier_pct","max_outlier_pct",
+            "pct_columns_with_outliers","avg_pct_zero","avg_pct_pos",
+            "avg_unique_ratio","pct_high_cardinality_cols"
+        ]}
 
-    for col in df.columns:
-        for key in col_stats[col].keys():
-            if key == "skewness_val":
-                skew_list.append(col_stats[col][key])
-                if col_stats[col][key]>1:
-                    pos_count+=1
-                elif col_stats[col][key]<-1:
-                    neg_count+=1
-            elif key == "kurtosis_val":
-                kur_list.append(col_stats[col][key])
-                if col_stats[col][key] > 3:
-                    heavy_count+=1
+    skew_vals = [v["skewness_val"] for v in col_stats.values()]
+    kur_vals = [v["kurtosis_val"] for v in col_stats.values()]
 
-        for key in col_analysis[col].keys():
-            if key == "std":
-                if col_analysis[col][key]<0.001:
-                    std_count+=1
-                std_list.append(col_analysis[col][key])
-            elif key == "outlier_pct":
-                if col_analysis[col][key]>0.01:
-                    outlier_count+=1
-                outlier_list.append(col_analysis[col][key])
-            elif key == "pct_zero":
-                pct_zero_list.append(col_analysis[col][key])
-            elif key == "pct_pos":
-                pct_pos_list.append(col_analysis[col][key])
-            elif key == "unique_ratio":
-                if col_analysis[col][key]>0.2:
-                    card_count+=1
-                unique_list.append(col_analysis[col][key])
+    std_vals = [v["std"] for v in col_analysis.values()]
+    out_vals = [v["outlier_pct"] for v in col_analysis.values()]
+    zero_vals = [v["pct_zero"] for v in col_analysis.values()]
+    pos_vals = [v["pct_pos"] for v in col_analysis.values()]
+    uniq_vals = [v["unique_ratio"] for v in col_analysis.values()]
 
-    avg_skew, std_skew,pct_skew_gt_1,pct_skew_lt_1 = np.average(skew_list), np.std(skew_list), float(pos_count/len(col_stats.keys())), float(neg_count/len(col_stats.keys()))
-    avg_kur, std_kur,pct_heavy_tailed = np.average(kur_list), np.std(kur_list), float(heavy_count/len(col_stats.keys()))
-    avg_std, std_std, pct_low_variance = np.average(std_list), np.std(std_list), float(std_count/len(col_analysis.keys()))
-    avg_outlier_pct, max_outlier_pct, pct_columns_with_outliers = np.average(outlier_list), np.max(outlier_list), float(outlier_count/len(col_analysis.keys()))
-    avg_pct_zero, avg_pct_pos = np.average(pct_zero_list), np.average(pct_pos_list)
-    avg_unq_ratio, pct_high_card_cols = np.average(unique_list), float(card_count/len(col_analysis.keys()))
+    n = len(col_analysis)
 
-    meta_structure = {
-        "avg_skew": float(avg_skew),
-        "std_skew": float(std_skew),
-        "pct_skew_gt_1": float(pct_skew_gt_1),
-        "pct_skew_lt_-1": float(pct_skew_lt_1),
-        "avg_kur": float(avg_kur),
-        "std_kur": float(std_kur),
-        "pct_heavy_tailed": float(pct_heavy_tailed),
-        "avg_std": float(avg_std),
-        "std_of_std": float(std_std),
-        "pct_low_variance":float(pct_low_variance),
-        "avg_outlier_pct":float(avg_outlier_pct),
-        "max_outlier_pct":float(max_outlier_pct),
-        "pct_columns_with_outliers":float(pct_columns_with_outliers),
-        "avg_pct_zero":float(avg_pct_zero),
-        "avg_pct_pos":float(avg_pct_pos),
-        "avg_unique_ratio": float(avg_unq_ratio),
-        "pct_high_cardinality_cols":float(pct_high_card_cols)
+    return {
+        "avg_skew": _clean_float(np.mean(skew_vals)),
+        "pct_skew_gt_1": _safe_div(sum(abs(v) > 1 for v in skew_vals), n),
+        "avg_kur": _clean_float(np.mean(kur_vals)),
+        "pct_heavy_tailed": _safe_div(sum(v > 3 for v in kur_vals), n),
+        "avg_std": _clean_float(np.mean(std_vals)),
+        "pct_low_variance": _safe_div(sum(v < 1e-3 for v in std_vals), n),
+        "avg_outlier_pct": _clean_float(np.mean(out_vals)),
+        "max_outlier_pct": _clean_float(np.max(out_vals)),
+        "pct_columns_with_outliers": _safe_div(sum(v > 0.01 for v in out_vals), n),
+        "avg_pct_zero": _clean_float(np.mean(zero_vals)),
+        "avg_pct_pos": _clean_float(np.mean(pos_vals)),
+        "avg_unique_ratio": _clean_float(np.mean(uniq_vals)),
+        "pct_high_cardinality_cols": _safe_div(sum(v > 0.2 for v in uniq_vals), n),
     }
 
-    return meta_structure
 
 
-def X_analysis(X):
-    #---------------------------------
-    nrows,ncols,nnumerical,ncategorical,numerical_df,numerical_null,categorical_df,categorical_null,total_values,total_null_values,pct_total = stats_analyzer(X)
+def get_correlations(df, output_column):
+    if output_column not in df.columns:
+        return 0.0, 0.0, 0.0, 0.0
+
+    temp = df.copy()
+
+    for col in temp.select_dtypes(include=["object", "category"]).columns:
+        temp[col] = pd.factorize(temp[col])[0]
+
+    if not pd.api.types.is_numeric_dtype(temp[output_column]):
+        return 0.0, 0.0, 0.0, 0.0
+
+    X = temp.drop(columns=[output_column])
+    y = temp[output_column]
+
+    X = X.loc[:, X.nunique() > 1]
+    if X.shape[1] == 0:
+        return 0.0, 0.0, 0.0, 0.0
+
+    tc = X.corrwith(y).abs().fillna(0)
+    mean_t, max_t = tc.mean(), tc.max()
+
+    corr = X.corr().abs()
+    upper = corr.where(np.triu(np.ones(corr.shape), 1).astype(bool))
+    vals = upper.stack()
+
+    return (
+        _clean_float(vals.mean()) if not vals.empty else 0.0,
+        _clean_float(vals.max()) if not vals.empty else 0.0,
+        _clean_float(mean_t),
+        _clean_float(max_t),
+    )
+
+
+
+def X_analysis(X, output_column):
+    nrows,ncols,nnumerical,ncategorical,numerical_df,numerical_null,categorical_df,categorical_null,total_values,total_null_values,pct_total = stats_analyzer(X, output_column)
     numerical_stats = numerical_skew_kurtosis(numerical_df)
     pca_com1, pca_com2, pca_com3 = pca_analysis(numerical_df)
 
@@ -276,7 +268,7 @@ def X_analysis(X):
                                      "outlier_count":outlier_count,"outlier_pct":outlier_pct,"pct_zero":pct_zero,"pct_pos":pct_pos,"pct_neg":pct_neg,
                                      "is_constant":is_constant,"is_quasi_constant":is_quasi_constant
                                      }
-    #----------------------------------
+        
     meta_structure = aggregate_numeric_stats(numerical_col_analysis, numerical_stats,numerical_df)
     meta_structure["pca_component_1"] = pca_com1
     meta_structure["pca_component_2"] = pca_com2
@@ -286,20 +278,14 @@ def X_analysis(X):
     meta_structure["numerical_ratio"] = float(nnumerical/(nnumerical+ncategorical))
     meta_structure["n_rows"] = nrows
     meta_structure["n_cols"] = ncols
-
-    #----------------------------------
-    # input_display(nnumerical,numerical_df,numerical_null,total_values,total_null_values,pct_total,numerical_stats,numerical_col_analysis,meta_structure)
-    #----------------------------------
-
     return meta_structure
 
 
 def Y_analysis(Y,column_name):
-    n_rows,n_total,n_null,pct_missing = stats_analyzer(Y)
+    n_rows,n_total,n_null,pct_missing = stats_analyzer(Y, column_name)
     target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio = distribution_stats(Y,column_name)
     output_skew_kur_stats = numerical_skew_kurtosis(Y)
     target_outlier_count, target_outlier_pct = outliers(Y,column_name)
-    #-----------------------------
     target_meta = {}
     target_meta["target_mean"] = target_mean
     target_meta['target_std']=target_std
@@ -315,67 +301,32 @@ def Y_analysis(Y,column_name):
     target_meta["target_missing_ratio"] = float(output_skew_kur_stats[column_name]["n_missing"]/Y.size)
     target_meta["target_unique_ratio"]=target_unique_ratio
     target_meta['target_n_unique']=target_n_unique
-    #--------------------------------
-    # output_display(n_rows,n_total,n_null,pct_missing,target_mean,target_std,target_min,target_max,target_range,target_n_unique,target_unique_ratio,output_skew_kur_stats,target_outlier_count,target_outlier_pct)
-    #--------------------------------
     return target_meta
 
 
-def get_correlations(df, output_column):
-    temp_df = df.copy()
-    for col in temp_df.select_dtypes(include = ['object', 'category']).columns:
-        temp_df[col] = pd.factorize(temp_df[col])[0]
+def reg_meta(path, column_name):
+    df = pd.read_csv(path)
 
-    if output_column not in temp_df.columns:
-        return 0.0, 0.0, 0.0, 0.0
-    
-    X = temp_df.drop(columns = [output_column])
-    y = temp_df[output_column]
+    if column_name not in df.columns:
+        raise ValueError("Target column not found")
 
-    if X.shape[1] == 0:
-        return 0.0, 0.0, 0.0, 0.0
-    
-    target_corrs = X.corrwith(y).abs()
+    if not pd.api.types.is_numeric_dtype(df[column_name]):
+        raise ValueError("Regression target must be numeric")
 
-    target_corrs = target_corrs.fillna(0)
+    avg_corr, max_corr, mean_corr_target, max_corr_target = get_correlations(df, column_name)
 
-    mean_corr_with_target = float(target_corrs.mean())
-    max_corr_with_target = float(target_corrs.max())
+    X = df.drop(columns=[column_name])
+    Y = df[[column_name]]
 
-    corr_matrix = X.corr().abs().fillna(0)
+    meta = X_analysis(X, column_name)
+    meta["missing_ratio"] = _safe_div(df.isna().sum().sum(), df.size)
 
-    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-    avg_corr_features = float(upper_tri.stack().mean())
-    max_corr_features = float(upper_tri.stack().max())
+    meta.update({
+        "avg_corr_features": avg_corr,
+        "max_corr_features": max_corr,
+        "mean_corr_with_target": mean_corr_target,
+        "max_corr_with_target": max_corr_target,
+    })
 
-    if pd.isna(avg_corr_features): avg_corr_features = 0.0
-    if pd.isna(max_corr_features): max_corr_features = 0.0
-
-    return avg_corr_features, max_corr_features, mean_corr_with_target, max_corr_with_target
-
-
-def reg_meta(path,column_name):
-    file_path = path
-    df = pd.read_csv(file_path)
-    output_column= column_name
-
-    avg_corr, max_corr, mean_corr_target, max_corr_target = get_correlations(df, output_column)
-
-    X=df.drop(columns=[output_column])
-    Y=df[[output_column]]
-
-    meta_vector = X_analysis(X)
-    meta_vector["missing_ratio"] = float(df.isna().sum().sum() / df.size)
-
-    meta_vector["avg_corr_features"] = avg_corr
-    meta_vector["max_corr_features"] = max_corr
-    meta_vector["mean_corr_with_target"] = mean_corr_target
-    meta_vector["max_corr_with_target"] = max_corr_target
-
-    target_meta = Y_analysis(Y,output_column)
-    meta_vector.update(target_meta)
-    
-    print("-------------Regression Meta Vector-----------------\n\n",meta_vector)
-
-    return meta_vector
-
+    meta.update(Y_analysis(Y, column_name))
+    return meta

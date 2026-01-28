@@ -115,7 +115,7 @@ def run_regression_meta_writer():
     for filename, target_col in targets.items():
         print(f"\n[META] Processing {filename}")
 
-        uploaded_path = os.path.join(BASE_DIR, "datasets", filename)
+        uploaded_path = os.path.join(BASE_DIR, "datasets", "regression", filename)
 
         if not os.path.exists(uploaded_path):
             print(f"[SKIP] File not found: {filename}")
